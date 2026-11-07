@@ -1,0 +1,85 @@
+name: Publish release
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preview uses ad-hoc signing; signed requires Developer ID and notarization
+        required: true
+        default: preview
+        type: choice
+        options: [preview, signed]
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  package:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: release
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Verify before accessing signing credentials
+        run: zsh scripts/test.sh
+      - name: Build and package preview
+        if: inputs.mode == 'preview'
+        env:
+          LUMAPULSE_UNIVERSAL: '1'
+        run: |
+          zsh scripts/build.sh
+          zsh scripts/package.sh
+      - name: Sign and notarize stable release
+        if: inputs.mode == 'signed'
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          LUMAPULSE_SIGNING_IDENTITY: ${{ vars.LUMAPULSE_SIGNING_IDENTITY }}
+        run: zsh scripts/ci-sign.sh
+      - name: Prepare release metadata
+        env:
+          RELEASE_MODE: ${{ inputs.mode }}
+        run: python3 scripts/release-metadata.py
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-package
+          path: |
+            dist/LumaPulse-v*.zip
+            dist/LumaPulse-v*.zip.sha256
+            dist/release-notes.md
+            dist/release-tag.txt
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: release-package
+          path: package
+      - name: Verify checksums and publish immutable version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          RELEASE_MODE: ${{ inputs.mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd package
+          sha256sum --check ./*.sha256
+          tag=$(cat release-tag.txt)
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
+          flags=()
+          if [[ "$RELEASE_MODE" == preview ]]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
+          gh release create "$tag" --target "$COMMIT_SHA" --title "LumaPulse $tag" --notes-file release-notes.md "${flags[@]}" ./*.zip ./*.sha256

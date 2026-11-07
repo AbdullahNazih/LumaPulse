@@ -1,0 +1,28 @@
+name: Security and build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate release scripts and property lists
+        run: |
+          for script in scripts/*.sh; do zsh -n "$script"; done
+          plutil -lint Resources/Info.plist Resources/LumaPulse.entitlements
+      - name: Functional, adversarial input, update, and report checks
+        run: zsh scripts/test.sh
+      - name: Build sandboxed app and inspect hardening
+        run: zsh scripts/build.sh
+      - name: Verify sandbox file isolation
+        run: dist/LumaPulse.app/Contents/MacOS/LumaPulse --sandbox-smoke

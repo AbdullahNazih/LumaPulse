@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="390" viewBox="0 0 1200 390" role="img" aria-label="LumaPulse. Your markets, at a glance.">
+<rect width="1200" height="390" rx="24" fill="#101720"/>
+<g stroke="#23323e" stroke-width="1"><path d="M700 90H1130M700 150H1130M700 210H1130M700 270H1130"/><path d="M760 65V300M860 65V300M960 65V300M1060 65V300"/></g>
+<path d="M710 250L765 220L815 235L870 165L920 185L972 125L1020 150L1080 90L1130 110" fill="none" stroke="#45deba" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1080" cy="90" r="9" fill="#e0b0ad"/>
+<text x="64" y="112" fill="#45deba" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="17" letter-spacing="5">NATIVE MACOS MENU BAR COMPANION</text>
+<text x="60" y="198" fill="#f5f7fa" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="76" font-weight="700">LumaPulse</text>
+<text x="64" y="251" fill="#becad5" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="28">Your markets, at a glance.</text>
+<rect x="64" y="294" width="468" height="42" rx="21" fill="#202d39"/>
+<text x="88" y="322" fill="#e0b0ad" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="18">STOCKS  ·  CRYPTO  ·  GOLD  ·  SILVER</text>
+</svg>
