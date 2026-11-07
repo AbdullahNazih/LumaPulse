@@ -82,4 +82,5 @@ jobs:
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
           flags=()
           if [[ "$RELEASE_MODE" == preview ]]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
-          gh release create "$tag" --target "$COMMIT_SHA" --title "LumaPulse $tag" --notes-file release-notes.md "${flags[@]}" ./*.zip ./*.sha256
+          gh release create "$tag" --draft --target "$COMMIT_SHA" --title "LumaPulse $tag" --notes-file release-notes.md "${flags[@]}" ./*.zip ./*.sha256
+          gh release edit "$tag" --draft=false "${flags[@]}"
