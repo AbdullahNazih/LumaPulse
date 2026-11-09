@@ -28,14 +28,13 @@ import AppKit
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         guard panel.runModal() == .OK, let selected = panel.url else { return }
-        guard matchesInstallFolder(selected, parent) else {
-            show("LumaPulse could not be removed", "Select the folder containing this copy of LumaPulse: \(parent.path)")
-            return
-        }
-
-        let scoped = selected.startAccessingSecurityScopedResource()
-        defer { if scoped { selected.stopAccessingSecurityScopedResource() } }
         do {
+            // NSOpenPanel starts security-scoped access for its returned URL.
+            defer { selected.stopAccessingSecurityScopedResource() }
+            guard matchesInstallFolder(selected, parent) else {
+                show("LumaPulse could not be removed", "Select the folder containing this copy of LumaPulse: \(parent.path)")
+                return
+            }
             try FileManager.default.trashItem(at: bundle, resultingItemURL: nil)
         } catch {
             show("LumaPulse could not be moved to the Trash", error.localizedDescription)
