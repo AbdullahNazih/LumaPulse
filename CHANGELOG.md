@@ -4,7 +4,7 @@
 
 ### Added
 
-- Uninstall LumaPulse from Preferences. After confirmation and macOS folder approval, LumaPulse moves the running app to the Trash, clears local settings and bookmarks, removes its saved provider credentials, and quits.
+- Uninstall LumaPulse from Preferences. After confirmation and macOS folder approval, LumaPulse moves the running app to the Trash, clears local settings and bookmarks, removes its saved provider credentials, and quits. Emptying the Trash removes the bundle from disk.
 
 ### Changed
 
