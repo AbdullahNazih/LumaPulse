@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import Foundation
 
@@ -111,6 +112,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
         if enabled { enabledSources.insert(id) } else { enabledSources.remove(id) }
         UserDefaults.standard.set(Array(enabledSources), forKey: "enabledNewsSources")
         if live {
+            scheduleRefresh()
             stories.removeAll { story in FeedSource.all.contains(where: { $0.id == story.sourceID }) && !enabledSources.contains(story.sourceID) }
             Task { await refresh() }
         }
@@ -122,6 +124,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
     @Published private(set) var alertPreset = UserDefaults.standard.object(forKey: "alertPreset") as? Int ?? 10
     @Published private(set) var customDuration = AlertTiming.clamp(UserDefaults.standard.object(forKey: "customAlertDuration") as? Int ?? 60)
     var onAlert: ((Story, TimeInterval) -> Void)?
+    var onUninstall: (() -> Void)?
     var onDismissAlert: (() -> Void)?
     var alertDuration: Int { AlertTiming.duration(preset: alertPreset, custom: customDuration) }
     func setAlertPreset(_ value: Int) {
@@ -152,9 +155,17 @@ final class FeedParser: NSObject, XMLParserDelegate {
         if let automaticAlerts { automaticMarketAlerts = automaticAlerts }
         stories = Self.preview
         api.onEvent = { [weak self] event in self?.receive(event) }
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in if self?.live == true { await self?.refresh() } }
+    }
+    var refreshInterval: TimeInterval { ProcessInfo.processInfo.isLowPowerModeEnabled ? 300 : 60 }
+    func scheduleRefresh() {
+        timer?.invalidate()
+        timer = nil
+        guard live, !enabledSources.isEmpty else { return }
+        let interval = refreshInterval
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.refresh() }
         }
+        timer?.tolerance = interval / 10
     }
     var visible: [Story] {
         let display = activeAlert.map { alert in [alert] + stories.filter { $0.id != alert.id } } ?? stories
@@ -172,6 +183,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
     }
     func setMode(_ enabled: Bool) {
         live = enabled
+        scheduleRefresh()
         if enabled { stories = []; api.resumeConfigured(); Task { await refresh() } }
         else { api.stopAll(); dismissAlert(); stories = Self.preview; updated = nil; message = "Preview stories · illustrative content" }
     }
@@ -205,7 +217,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
         }.filter { seen.insert($0.id).inserted }
         if failed.count < sources.count { updated = Date() }
         let names = sources.filter { failed.contains($0.id) }.map(\.name).joined(separator: ", ")
-        message = failed.isEmpty ? "\(sources.count) sources · RSS refresh every 60 sec" : "Unavailable: \(names) · retry every 60 sec"
+        message = failed.isEmpty ? "\(sources.count) sources · RSS active" : "Unavailable: \(names) · automatic retry"
     }
 }
 
@@ -344,7 +356,7 @@ struct PulseView: View {
                         }
                     }
                 }
-                Text("RSS refreshes every 60 seconds. Publisher delays may apply. Market-driver tags highlight headline topics; forecasts are shown as analysis.").font(.system(size: 11)).foregroundColor(.secondary).lineSpacing(4)
+                Text("RSS refreshes every minute, or every five minutes in Low Power Mode. Publisher delays may apply. Market-driver tags highlight headline topics; forecasts are shown as analysis.").font(.system(size: 11)).foregroundColor(.secondary).lineSpacing(4)
                 Text("RSS feeds are the fallback briefing. Automatic alerts use the connected streaming providers above.").font(.system(size: 11)).foregroundColor(.secondary)
             }
             Divider()
@@ -370,11 +382,12 @@ struct PulseView: View {
             Divider()
             VStack(alignment: .leading, spacing: 15) {
                 Text("MENU BAR").font(.system(size: 10, weight: .bold)).tracking(1.5).foregroundColor(accent)
-                Toggle("Gentle pulse animation", isOn: $model.animate)
+                Toggle("Pulse during alerts", isOn: $model.animate)
                 Toggle("Show LumaPulse label", isOn: $model.showTitle)
             }
             Divider()
             Text("LumaPulse \(model.updates.currentVersion)\nStocks · Crypto · Gold · Silver").font(.system(size: 12)).foregroundColor(.secondary).lineSpacing(6)
+            Button("Uninstall LumaPulse…", role: .destructive) { model.onUninstall?() }.buttonStyle(.bordered)
             Button("Back to headlines") { model.settings = false }.buttonStyle(.borderedProminent).tint(accent).foregroundColor(.black)
         }.font(.system(size: 13)).padding(24).frame(maxHeight: .infinity)
         }
@@ -453,6 +466,7 @@ struct BreakingBanner: View {
     let popover = NSPopover()
     var timer: Timer?
     var beat = false
+    private var observations = Set<AnyCancellable>()
     let banner = BreakingBannerController()
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -464,12 +478,12 @@ struct BreakingBanner: View {
         model.onAlert = { [weak self] story, duration in
             guard let self else { return }
             self.popover.performClose(nil)
-            self.updateStatus()
+            self.scheduleStatus()
             self.banner.show(story: story, duration: duration) { [weak self] in self?.model.dismissAlert() }
         }
         model.onDismissAlert = { [weak self] in
             self?.banner.hide()
-            self?.updateStatus()
+            self?.scheduleStatus()
         }
         model.updates.onAvailable = { [weak self] release in
             guard let self, let url = release.trustedURL else { return }
@@ -477,18 +491,56 @@ struct BreakingBanner: View {
             self.model.activeAlert = story
             self.model.onAlert?(story, TimeInterval(self.model.alertDuration))
         }
+        model.onUninstall = { [weak self] in
+            guard let self else { return }
+            self.popover.performClose(nil)
+            Uninstaller.run(prepare: {
+                self.model.updates.stop()
+                self.model.setMode(false)
+            }, finish: { NSApp.terminate(nil) })
+        }
+        Publishers.Merge3(
+            model.$animate.dropFirst().map { _ in () },
+            model.$showTitle.dropFirst().map { _ in () },
+            model.$live.dropFirst().map { _ in () }
+        ).sink { [weak self] in Task { @MainActor in self?.scheduleStatus() } }
+            .store(in: &observations)
+        NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.model.scheduleRefresh()
+                    self?.scheduleStatus()
+                }
+            }.store(in: &observations)
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification)
+            .sink { [weak self] _ in Task { @MainActor in self?.scheduleStatus() } }
+            .store(in: &observations)
         if !CommandLine.arguments.contains("--no-update-check") { model.updates.start() }
         if CommandLine.arguments.contains("--live") { model.setMode(true) }
         if CommandLine.arguments.contains("--simulate") { model.simulateBreakingNews() }
-        updateStatus()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: true) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }
+        scheduleStatus()
         if CommandLine.arguments.contains("--show") && !CommandLine.arguments.contains("--simulate") { toggle() }
     }
+    func scheduleStatus() {
+        timer?.invalidate()
+        timer = nil
+        beat = false
+        updateStatus()
+        guard model.activeAlert != nil, model.animate,
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.timer != nil else { return }
+                self.beat.toggle()
+                self.updateStatus()
+            }
+        }
+        timer?.tolerance = 0.16
+    }
     func updateStatus() {
-        beat.toggle()
-        let reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let hasAlert = model.activeAlert != nil
-        let name = hasAlert ? (model.animate && !reducedMotion && beat ? "bolt.circle.fill" : "bolt.circle") : (model.animate && !reducedMotion && beat ? "waveform.path" : "waveform.path.ecg")
+        let name = hasAlert ? (beat ? "bolt.circle.fill" : "bolt.circle") : "waveform.path.ecg"
         item.button?.image = NSImage(systemSymbolName: name, accessibilityDescription: "LumaPulse news")
         item.button?.image?.isTemplate = true
         item.button?.imagePosition = .imageLeading
@@ -608,6 +660,10 @@ if CommandLine.arguments.contains("--self-test") {
     let encoded = URLComponents(url: TradingProvider.benzinga.url(key: "test&token=?"), resolvingAgainstBaseURL: false)!
     precondition(encoded.queryItems?.first?.value == "test&token=?", "Credentials must be URL-encoded")
     MainActor.assumeIsolated {
+        let installFolder = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        precondition(Uninstaller.matchesInstallFolder(installFolder, installFolder))
+        precondition(!Uninstaller.matchesInstallFolder(installFolder.appendingPathComponent("Other"), installFolder))
+        precondition(!Uninstaller.matchesInstallFolder(URL(string: "https://example.com/Applications")!, installFolder))
         let model = NewsModel(automaticAlerts: true)
         let originalIDs = model.stories.map(\.id)
         model.selectedTopic = "Silver"

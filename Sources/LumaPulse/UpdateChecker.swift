@@ -35,27 +35,46 @@ struct GitHubRelease: Decodable {
 
 @MainActor final class UpdateChecker: ObservableObject {
     @Published var enabled = UserDefaults.standard.object(forKey: "automaticUpdateChecks") as? Bool ?? true {
-        didSet { UserDefaults.standard.set(enabled, forKey: "automaticUpdateChecks") }
+        didSet {
+            UserDefaults.standard.set(enabled, forKey: "automaticUpdateChecks")
+            if started { schedule() }
+        }
     }
     @Published var status = "Checks GitHub for new stable releases"
     @Published var release: GitHubRelease?
     @Published var checking = false
     var onAvailable: ((GitHubRelease) -> Void)?
     private var timer: Timer?
+    private var started = false
+    private var stopped = false
     private var lastCheck = Date.distantPast
     let currentVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0") + (Bundle.main.object(forInfoDictionaryKey: "LumaPulseReleaseSuffix") as? String ?? "-rc.1")
     func start() {
-        if enabled { Task { await check() } }
+        started = true
+        schedule()
+    }
+    func stop() {
+        stopped = true
+        timer?.invalidate()
+        timer = nil
+    }
+    private func schedule() {
+        timer?.invalidate()
+        timer = nil
+        guard enabled, !stopped else { return }
+        Task { await check() }
         timer = Timer.scheduledTimer(withTimeInterval: 21_600, repeats: true) { [weak self] _ in
             Task { @MainActor in guard let self, self.enabled else { return }; await self.check() }
         }
+        timer?.tolerance = 600
     }
     func check(manual: Bool = false) async {
-        guard !checking, manual || Date().timeIntervalSince(lastCheck) > 21_000 else { return }
+        guard !stopped, !checking, manual || Date().timeIntervalSince(lastCheck) > 21_000 else { return }
         checking = true; status = "Checking GitHub…"
         defer { checking = false; lastCheck = Date() }
         do {
             let (data, response) = try await LimitedHTTP.shared.get(URL(string: "https://api.github.com/repos/AbdullahNazih/LumaPulse/releases/latest")!, limit: 262_144, headers: ["Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"])
+            guard !stopped else { return }
             if response.statusCode == 404 { status = "No stable release published yet"; return }
             guard response.statusCode == 200 else { throw URLError(.badServerResponse) }
             let found = try JSONDecoder().decode(GitHubRelease.self, from: data)

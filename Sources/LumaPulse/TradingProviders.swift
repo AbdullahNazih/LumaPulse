@@ -23,6 +23,14 @@ enum ProviderKeychain {
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
+    static func removeAll() -> Bool {
+        let results = TradingProvider.allCases.map { provider in
+            let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: provider.rawValue]
+            return SecItemDelete(query as CFDictionary)
+        }
+        return results.allSatisfy { $0 == errSecSuccess || $0 == errSecItemNotFound }
+    }
+
     static func save(_ key: String, provider: TradingProvider) -> Bool {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: provider.rawValue]
         let attributes: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]

@@ -8,8 +8,8 @@
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleShortVersionString</key><string>1.0.0</string>
-<key>LumaPulseReleaseSuffix</key><string>-rc.1</string>
-<key>CFBundleVersion</key><string>100</string>
+<key>LumaPulseReleaseSuffix</key><string>-rc.2</string>
+<key>CFBundleVersion</key><string>101</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
