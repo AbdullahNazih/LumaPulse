@@ -30,7 +30,7 @@ LumaPulse is a native macOS menu bar companion for **stocks, crypto, gold, silve
 
 Requires **macOS 13 or later**. Release packages support Apple Silicon and Intel. Gatekeeper may block downloaded, non-notarized previews; the app does not disable system security protections. You can build from the source or wait for a notarized stable release.
 
-RSS refreshes every 60 seconds; publisher delays may apply. Streaming access depends on your provider plan. Market-driver tags identify topics, not expected price impact or trading instructions. A new alert replaces the current alert. API access is separate from the app.
+RSS refreshes every minute, or every five minutes in Low Power Mode; publisher delays may apply. Streaming access depends on your provider plan. Market-driver tags identify topics, not expected price impact or trading instructions. A new alert replaces the current alert. API access is separate from the app.
 
 ## Privacy and security
 

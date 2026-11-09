@@ -26,4 +26,8 @@ Test alert shows an explicitly fictional demo. DEMO content is never presented a
 
 Update checks run at launch and every six hours while the app is running. Preferences includes Check for updates and an on/off switch for automatic checks. New stable versions produce a notification linking to this repository's release page. Download and replace the app yourself; nothing is silently installed. Existing preferences are retained by the stable app identifier across future releases.
 
-There is no analytics backend. Read the [privacy notice](../PRIVACY.md). GitHub download counts are aggregate downloads, not unique users. To quit, use Quit at the bottom of the panel. To uninstall, quit and remove the app; API keys can be revoked with the provider or removed using Keychain Access by searching for com.anazih.lumapulse.providers.
+There is no analytics backend. Read the [privacy notice](../PRIVACY.md). GitHub download counts are aggregate downloads, not unique users. To quit, use Quit at the bottom of the panel.
+
+### Uninstall LumaPulse
+
+Open **Preferences → Uninstall LumaPulse…** and confirm. In the macOS picker, approve the folder containing the running app (usually Applications). LumaPulse moves that copy to the Trash, clears this account’s saved settings, bookmarks, and provider credentials, then quits. Emptying the Trash removes the app bundle from disk. macOS may retain its empty sandbox container and system records. You can revoke provider tokens through your provider account.

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0-rc.2
+
+### Added
+
+- Uninstall LumaPulse from Preferences. After confirmation and macOS folder approval, LumaPulse moves the running app to the Trash, clears local settings and bookmarks, removes its saved provider credentials, and quits.
+
+### Changed
+
+- The menu bar stays static while idle. Alert pulses respect Low Power Mode and Reduce Motion.
+- RSS polling runs only when live headlines and at least one RSS source are enabled. Polling slows from one minute to five minutes in Low Power Mode.
+- Automatic update checks stop scheduling background work when turned off.
+
+### Security
+
+- The uninstall flow validates the selected folder and targets only the running app bundle and LumaPulse's own settings and Keychain entries. Folder access comes from the macOS picker and is limited to the uninstall operation.
+
 ## 1.0.0-rc.1 — 8 November 2026
 
 - Native macOS menu bar briefing for stocks, crypto, gold, silver and macro news.

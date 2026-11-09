@@ -30,7 +30,8 @@ def check_sources():
     assert info['CFBundleIdentifier'] == 'com.anazih.lumapulse'
     assert 'NSAppTransportSecurity' not in info, 'ATS exceptions forbidden'
     entitlements = plistlib.loads((ROOT / 'Resources/LumaPulse.entitlements').read_bytes())
-    assert entitlements == {'com.apple.security.app-sandbox': True, 'com.apple.security.network.client': True}
+    assert entitlements == {'com.apple.security.app-sandbox': True, 'com.apple.security.network.client': True,
+                            'com.apple.security.files.user-selected.read-write': True}
     for file in (ROOT / 'Sources').rglob('*.swift'):
         source = file.read_text()
         assert 'serverTrust' not in source and 'URLCredential(trust:' not in source, 'Custom certificate trust bypass'
@@ -41,7 +42,8 @@ def check_app(path, mode):
     details = subprocess.run(['codesign', '-dv', '--verbose=4', str(path)], capture_output=True, text=True, check=True).stderr
     assert 'runtime' in details, 'Hardened runtime missing'
     data = subprocess.run(['codesign', '-d', '--entitlements', ':-', str(path)], capture_output=True, check=True).stdout
-    assert plistlib.loads(data) == {'com.apple.security.app-sandbox': True, 'com.apple.security.network.client': True}
+    assert plistlib.loads(data) == {'com.apple.security.app-sandbox': True, 'com.apple.security.network.client': True,
+                            'com.apple.security.files.user-selected.read-write': True}
     if mode == 'distribution':
         assert 'Authority=Developer ID Application:' in details and 'Timestamp=' in details
     for file in path.rglob('*'):

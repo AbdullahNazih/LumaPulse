@@ -3,7 +3,7 @@
 LumaPulse has no analytics SDK, advertising, account service, or developer-operated backend.
 API credentials are stored in macOS Keychain when you select Save & connect.
 Disconnect stops reconnection but retains the key; provider access can be revoked in the provider account.
-Preferences and bookmark IDs stay in the app's macOS sandbox. Article content is held in memory.
+Preferences and bookmark IDs stay in the app's macOS sandbox. Article content is held in memory. The uninstall action clears these preferences and removes the saved provider credentials for your macOS account.
 
 Enabled RSS sources receive ordinary HTTPS requests from your device, including its IP address.
 Benzinga and Trading Economics receive the credentials needed to authenticate their streams.
